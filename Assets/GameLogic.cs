@@ -14,7 +14,7 @@ public class GameLogic : MonoBehaviour
     public GameObject capsule;
     public GameObject scoreText;
 
-    readonly Dictionary<CrystalGenerateType, ICrystalGenerator> CrystalGenerateFunc = new Dictionary<CrystalGenerateType, ICrystalGenerator>
+    readonly Dictionary<CrystalGenerateType, ICrystalGenerator> CrystalGenerators= new Dictionary<CrystalGenerateType, ICrystalGenerator>
     {
         [CrystalGenerateType.Random] = new CrystalGeneratorRandom(5),
         [CrystalGenerateType.InOrder] = new CrystalGeneratorInOrder(5),
@@ -30,20 +30,22 @@ public class GameLogic : MonoBehaviour
     Camera mainCamera;
     Vector3 cameraPos;
     Vector3 moveDirection;
-    IGroundGenerator ground;
+    Ground ground;
 
     public void Start()
     {
         mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
         cameraPos = mainCamera.transform.position;
 
+        ground = new Ground(cube, capsule);
         CreateLevel();
     }
 
     private void CreateLevel()
     {
-        ground = GroundGenerators[GameDifficulty];
-        ground.Generate(CrystalGenerateFunc[CrystalGenerate], cube, capsule);
+        var groundGenerator = GroundGenerators[GameDifficulty];
+        var crystalGenerator = CrystalGenerators[CrystalGenerate];
+        groundGenerator.Generate(crystalGenerator, ground);
     }
 
     public void Update()
