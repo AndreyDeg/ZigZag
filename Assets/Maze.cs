@@ -8,9 +8,17 @@ using UnityEngine;
 public class Maze
 {
     GameObject cube, capsule;
+    int width;
+    ICrystalGenerator crystalGenerator;
+
+    int groundN;
+    int groundX, groundZ;
+    int mazeX, mazeZ;
+    int mazeBlock = 16;
     bool[,] ground;
+    
     List<GameObject> ltGround = new List<GameObject>();
-    List<GameObject> ltBonus = new List<GameObject>();
+    List<GameObject> ltCrystals = new List<GameObject>();
 
     public Maze(GameObject cube, GameObject capsule)
     {
@@ -27,47 +35,61 @@ public class Maze
         clone.SetActive(true);
         ltGround.Add(clone);
         if (x >= 0 && z >= 0)
-            ground[x++, z] = true;
+            ground[x++ - mazeX, z - mazeZ] = true;
     }
 
-    private void SetBonus(int x, int z)
+    private void SetCrystal(float x, float z)
     {
         GameObject clone = GameObject.Instantiate(capsule);
         clone.transform.position += new Vector3(x, 0, z);
         clone.SetActive(true);
         ltGround.Add(clone);
-        ltBonus.Add(clone);
+        ltCrystals.Add(clone);
     }
 
-    public void Generate()
+    public void Generate(int width, ICrystalGenerator crystalGenerator)
     {
+        this.width = width;
+        this.crystalGenerator = crystalGenerator;
+
+        mazeX = 0;
+        mazeZ = 0;
+
         foreach (var clone in ltGround)
             GameObject.Destroy(clone);
         ltGround.Clear();
 
-        var r = new System.Random((int)DateTime.Now.Ticks); //TODO_deg
-        ground = new bool[256, 256]; //TODO_deg
+        ground = new bool[mazeBlock * 2, mazeBlock * 2];
 
         for (int startX = -1; startX <= 1; startX++)
             for (int startZ = -1; startZ <= 1; startZ++)
                 SetGround(startX, startZ);
 
-        int p = 0;
-        int x = 2;
-        int z = 1;
-        while (x < 250 && z < 250)
+        groundN = 0;
+        groundX = 1;
+        groundZ = 1;
+        GenerateGround();
+    }
+
+    private void GenerateGround()
+    {
+        while (groundX < mazeX + mazeBlock * 1.5 && groundZ < mazeZ + mazeBlock * 1.5)
         {
-            for (int i = r.Next(1, 5); i > 0; i--, p++)
+            for (int i = UnityEngine.Random.Range(1, 5); i > 0; i--)
             {
-                if (p % 5 == p / 5 % 5)
-                    SetBonus(x, z);
-                SetGround(x++, z);
+                groundZ++;
+                if (crystalGenerator.Check(groundN++))
+                    SetCrystal(groundX - (width - 1) / 2f, groundZ);
+                for (int w = 0; w < width; w++)
+                    SetGround(groundX - w, groundZ);
             }
-            for (int i = r.Next(1, 5); i > 0; i--, p++)
+            for (int i = UnityEngine.Random.Range(1, 5); i > 0; i--)
             {
-                if (p % 5 == p / 5 % 5)
-                    SetBonus(x, z);
-                SetGround(x, z++);
+                groundX++;
+                if (crystalGenerator.Check(groundN++))
+                    SetCrystal(groundX, groundZ - (width - 1) / 2f);
+                for (int w = 0; w < width; w++)
+                    SetGround(groundX, groundZ - w);
             }
         }
     }
@@ -76,6 +98,34 @@ public class Maze
     {
         int x = (int)Math.Round(pos.x);
         int z = (int)Math.Round(pos.z);
+
+        if(x > mazeX + mazeBlock)
+        {
+            mazeX += mazeBlock;
+            for (int mz = 0; mz < mazeBlock * 2; mz++)
+            {
+                for (int mx = 0; mx < mazeBlock; mx++)
+                    ground[mx, mz] = ground[mx + mazeBlock, mz];
+                for (int mx = mazeBlock; mx < mazeBlock*2; mx++)
+                    ground[mx, mz] = false;
+            }
+            
+            GenerateGround();
+        }
+
+        if (z > mazeZ + mazeBlock)
+        {
+            mazeZ += mazeBlock;
+            for (int mx = 0; mx < mazeBlock * 2; mx++)
+            {
+                for (int mz = 0; mz < mazeBlock; mz++)
+                    ground[mx, mz] = ground[mx, mz + mazeBlock];
+                for (int mz = mazeBlock; mz < mazeBlock*2; mz++)
+                    ground[mx, mz] = false;
+            }
+
+            GenerateGround();
+        }
 
         ltGround.RemoveAll(clone => clone == null);
         foreach (var clone in ltGround)
@@ -87,14 +137,14 @@ public class Maze
                 GameObject.Destroy(clone);
         }
 
-        ltBonus.RemoveAll(clone => clone == null);
-        foreach (var clone in ltBonus)
+        ltCrystals.RemoveAll(clone => clone == null);
+        foreach (var clone in ltCrystals)
         {
             var d = (clone.transform.position - pos).magnitude;
-            if (d < (0.5+0.25)/2)
+            if (d < (0.5 + 0.25) / 2)
                 GameObject.Destroy(clone);
         }
 
-        return ground[x, z];
+        return ground[x - mazeX, z - mazeZ];
     }
 }
