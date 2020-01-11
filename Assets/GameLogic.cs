@@ -9,33 +9,41 @@ public class GameLogic : MonoBehaviour
     public CrystalGenerateType CrystalGenerate = CrystalGenerateType.Random;
     public GameDifficultyType GameDifficulty = GameDifficultyType.Medium;
 
-    
+    public GameObject sphere;
+    public GameObject cube;
+    public GameObject capsule;
+    public GameObject scoreText;
+
     readonly Dictionary<CrystalGenerateType, ICrystalGenerator> CrystalGenerateFunc = new Dictionary<CrystalGenerateType, ICrystalGenerator>
     {
         [CrystalGenerateType.Random] = new CrystalGeneratorRandom(5),
         [CrystalGenerateType.InOrder] = new CrystalGeneratorInOrder(5),
     };
 
-    readonly Dictionary<GameDifficultyType, int> WidthByDifficulty = new Dictionary<GameDifficultyType, int>
+    readonly Dictionary<GameDifficultyType, IGroundGenerator> GroundGenerators = new Dictionary<GameDifficultyType, IGroundGenerator>
     {
-        [GameDifficultyType.Easy] = 3,
-        [GameDifficultyType.Medium] = 2,
-        [GameDifficultyType.Hard] = 1,
+        [GameDifficultyType.Easy] = new MazeGenerator(5, 3),
+        [GameDifficultyType.Medium] = new MazeGenerator(5, 2),
+        [GameDifficultyType.Hard] = new MazeGenerator(5, 1),
     };
 
     Camera mainCamera;
     Vector3 cameraPos;
     Vector3 moveDirection;
-    Maze maze;
+    IGroundGenerator ground;
 
     public void Start()
     {
         mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
         cameraPos = mainCamera.transform.position;
-        var cube = GameObject.Find("Cube");
-        var capsule = GameObject.Find("Capsule");
-        maze = new Maze(cube, capsule);
-        maze.Generate(WidthByDifficulty[GameDifficulty], CrystalGenerateFunc[CrystalGenerate]);
+
+        CreateLevel();
+    }
+
+    private void CreateLevel()
+    {
+        ground = GroundGenerators[GameDifficulty];
+        ground.Generate(CrystalGenerateFunc[CrystalGenerate], cube, capsule);
     }
 
     public void Update()
@@ -49,32 +57,35 @@ public class GameLogic : MonoBehaviour
                 else
                     moveDirection = new Vector3(1f, 0, 0) * Speed;
             }
-            else if (gameObject.transform.position.y < 0)
-            {
-                moveDirection = new Vector3(0, -9f, 0);
-                gameObject.transform.position = new Vector3(0, 5, 0);
-                maze.Generate(WidthByDifficulty[GameDifficulty], CrystalGenerateFunc[CrystalGenerate]);
-            }
         }
 
-        gameObject.transform.position += moveDirection * Time.deltaTime;
+        sphere.transform.position += moveDirection * Time.deltaTime;
 
-        if (maze.Check(gameObject.transform.position))
+        if (ground.Check(sphere.transform.position))
         {
-            if(moveDirection.y < 0 && gameObject.transform.position.y < 0.25)
+            scoreText.GetComponent<TextMesh>().text = "Score: " + ground.Points;
+
+            if (moveDirection.y < 0 && sphere.transform.position.y < 0.25)
             {
                 moveDirection = new Vector3(0, 0, 0);
-                gameObject.transform.position = new Vector3(0, 0.25f, 0);
+                sphere.transform.position = new Vector3(0, 0.25f, 0);
             }
         }
         else
         {
-            moveDirection += new Vector3(0, -1f, 0);
+            if (sphere.transform.position.y > -10)
+                moveDirection += new Vector3(0, -1f, 0);
+            else
+            {
+                moveDirection = new Vector3(0, moveDirection.y, 0);
+                sphere.transform.position = new Vector3(0, 20, 0);
+                CreateLevel();
+            }
         }
     }
 
     public void LateUpdate()
     {
-        mainCamera.transform.position = gameObject.transform.position + cameraPos;
+        mainCamera.transform.position = sphere.transform.position + cameraPos;
     }
 }

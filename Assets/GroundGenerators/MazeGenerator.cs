@@ -5,10 +5,11 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 
-public class Maze
+public class MazeGenerator : IGroundGenerator
 {
     GameObject cube, capsule;
-    int width;
+    int roadWidth;
+    int roadLen = 5;
     ICrystalGenerator crystalGenerator;
 
     int groundN;
@@ -16,16 +17,16 @@ public class Maze
     int mazeX, mazeZ;
     int mazeBlock = 16;
     bool[,] ground;
-    
+
     List<GameObject> ltGround = new List<GameObject>();
     List<GameObject> ltCrystals = new List<GameObject>();
 
-    public Maze(GameObject cube, GameObject capsule)
+    public int Points { get; set; }
+
+    public MazeGenerator(int roadLen, int roadWidth)
     {
-        this.cube = cube;
-        this.capsule = capsule;
-        cube.SetActive(false);
-        capsule.SetActive(false);
+        this.roadLen = roadLen;
+        this.roadWidth = roadWidth;
     }
 
     private void SetGround(int x, int z)
@@ -35,7 +36,7 @@ public class Maze
         clone.SetActive(true);
         ltGround.Add(clone);
         if (x >= 0 && z >= 0)
-            ground[x++ - mazeX, z - mazeZ] = true;
+            ground[x - mazeX, z - mazeZ] = true;
     }
 
     private void SetCrystal(float x, float z)
@@ -47,10 +48,15 @@ public class Maze
         ltCrystals.Add(clone);
     }
 
-    public void Generate(int width, ICrystalGenerator crystalGenerator)
+    public void Generate(ICrystalGenerator crystalGenerator, GameObject cube, GameObject capsule)
     {
-        this.width = width;
         this.crystalGenerator = crystalGenerator;
+        this.cube = cube;
+        this.capsule = capsule;
+        cube.SetActive(false);
+        capsule.SetActive(false);
+
+        Points = 0;
 
         mazeX = 0;
         mazeZ = 0;
@@ -68,27 +74,27 @@ public class Maze
         groundN = 0;
         groundX = 1;
         groundZ = 1;
-        GenerateGround();
+        GenerateRoads();
     }
 
-    private void GenerateGround()
+    private void GenerateRoads()
     {
-        while (groundX < mazeX + mazeBlock * 1.5 && groundZ < mazeZ + mazeBlock * 1.5)
+        while (groundX + roadLen < mazeX + mazeBlock * 2 && groundZ + roadLen < mazeZ + mazeBlock * 2)
         {
-            for (int i = UnityEngine.Random.Range(1, 5); i > 0; i--)
+            for (int i = UnityEngine.Random.Range(1, roadLen); i > 0; i--)
             {
                 groundZ++;
                 if (crystalGenerator.Check(groundN++))
-                    SetCrystal(groundX - (width - 1) / 2f, groundZ);
-                for (int w = 0; w < width; w++)
+                    SetCrystal(groundX - (roadWidth - 1) / 2f, groundZ);
+                for (int w = 0; w < roadWidth; w++)
                     SetGround(groundX - w, groundZ);
             }
-            for (int i = UnityEngine.Random.Range(1, 5); i > 0; i--)
+            for (int i = UnityEngine.Random.Range(1, roadLen); i > 0; i--)
             {
                 groundX++;
                 if (crystalGenerator.Check(groundN++))
-                    SetCrystal(groundX, groundZ - (width - 1) / 2f);
-                for (int w = 0; w < width; w++)
+                    SetCrystal(groundX, groundZ - (roadWidth - 1) / 2f);
+                for (int w = 0; w < roadWidth; w++)
                     SetGround(groundX, groundZ - w);
             }
         }
@@ -99,18 +105,18 @@ public class Maze
         int x = (int)Math.Round(pos.x);
         int z = (int)Math.Round(pos.z);
 
-        if(x > mazeX + mazeBlock)
+        if (x > mazeX + mazeBlock)
         {
             mazeX += mazeBlock;
             for (int mz = 0; mz < mazeBlock * 2; mz++)
             {
                 for (int mx = 0; mx < mazeBlock; mx++)
                     ground[mx, mz] = ground[mx + mazeBlock, mz];
-                for (int mx = mazeBlock; mx < mazeBlock*2; mx++)
+                for (int mx = mazeBlock; mx < mazeBlock * 2; mx++)
                     ground[mx, mz] = false;
             }
-            
-            GenerateGround();
+
+            GenerateRoads();
         }
 
         if (z > mazeZ + mazeBlock)
@@ -120,11 +126,11 @@ public class Maze
             {
                 for (int mz = 0; mz < mazeBlock; mz++)
                     ground[mx, mz] = ground[mx, mz + mazeBlock];
-                for (int mz = mazeBlock; mz < mazeBlock*2; mz++)
+                for (int mz = mazeBlock; mz < mazeBlock * 2; mz++)
                     ground[mx, mz] = false;
             }
 
-            GenerateGround();
+            GenerateRoads();
         }
 
         ltGround.RemoveAll(clone => clone == null);
@@ -142,7 +148,10 @@ public class Maze
         {
             var d = (clone.transform.position - pos).magnitude;
             if (d < (0.5 + 0.25) / 2)
+            {
+                Points++;
                 GameObject.Destroy(clone);
+            }
         }
 
         return ground[x - mazeX, z - mazeZ];
