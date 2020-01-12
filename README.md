@@ -4,10 +4,10 @@
 Запуск игры через сцену в Assets\Scenes\StartGame.unity  
 Настройки игры находятся в объекте GameLogic в компоненте GameLogic
 * Speed - скорость шарика
-* CrystalGenerate - тип генерации кристалов
+* Crystal Generate - тип генерации кристалов
   * Random - случайным образом
   * InOrder - по порядку
-* GameDifficulty - слодность игры
+* Game Difficulty - сложность игры
   * Easy - ширина дорожки 3 клетки
   * Medium - ширина дорожки 2 клетки
   * Hard - ширина дорожки 1 клетка
