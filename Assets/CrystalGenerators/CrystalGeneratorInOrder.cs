@@ -1,6 +1,7 @@
-﻿public class CrystalGeneratorInOrder : ICrystalGenerator
+﻿//Расстановка кристалов по порядку, в каждом блоке по одному
+public class CrystalGeneratorInOrder : ICrystalGenerator
 {
-    int blockLen = 5;
+    int blockLen = 5; //длинна блока
 
     public CrystalGeneratorInOrder(int blockLen)
     {
