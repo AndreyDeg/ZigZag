@@ -1,4 +1,8 @@
-﻿public interface ILevelGenerator
+﻿using System.Collections.Generic;
+using UnityEngine;
+
+public interface ILevelGenerator
 {
-    void Generate(LevelData level, ICrystalGenerator crystalGenerator);
+    void Clear();
+    IEnumerable<GroundData> Generate(int maxX, int maxZ);
 }

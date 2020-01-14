@@ -1,12 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 //Игровой уровень
 //Имеет размеры mazeSize*mazeSize
 public class LevelData
 {
-    GameObject cube, capsule;
+    GameObjectPull groundPull;
+    GameObjectPull crystalPull;
+
+    ILevelGenerator levelGenerator;
+    ICrystalGenerator crystalGenerator;
 
     //Размер и позиция уровня
     int mazeSize = 32;
@@ -15,37 +20,29 @@ public class LevelData
     //Карта земли, если true, то в этой точке есть земля
     bool[,] ground;
 
-    //Объекты на уровне, земля и кристаллы
-    List<GameObject> ltObjects = new List<GameObject>();
-    //Отдельный список для кристаллов
+    //Список блоков земли
+    List<GameObject> ltGrounds = new List<GameObject>();
+    //Список кристаллов
     List<GameObject> ltCrystals = new List<GameObject>();
-
-    public Action OnUpdate;
 
     //Очки, заработанные за кристалы
     public int Score { get; private set; }
 
-    public LevelData(GameObject cube, GameObject capsule)
+    public LevelData(GameObjectPull groundPull, GameObjectPull crystalPull)
     {
-        this.cube = cube;
-        this.capsule = capsule;
-        cube.SetActive(false);
-        capsule.SetActive(false);
-    }
-
-    //Проверка границы уровня
-    public bool CanSet(int x, int z)
-    {
-        return x < mazeX + mazeSize && z < mazeZ + mazeSize;
+        this.groundPull = groundPull;
+        this.crystalPull = crystalPull;
     }
 
     //Установить землю
-    public void SetGround(int x, int z)
+    private void SetGround(Vector3 position)
     {
-        GameObject clone = GameObject.Instantiate(cube);
-        clone.transform.position += new Vector3(x, 0, z);
-        clone.SetActive(true);
-        ltObjects.Add(clone);
+        var cube = groundPull.Get();
+        cube.transform.position += position;
+        ltGrounds.Add(cube);
+
+        int x = (int)Math.Round(position.x);
+        int z = (int)Math.Round(position.z);
         if (x >= 0 && z >= 0)
             ground[x - mazeX, z - mazeZ] = true;
     }
@@ -54,19 +51,17 @@ public class LevelData
 
     //Установить кристалл
     //Кристал ставится выше или правее предыдущего кристала, чтобы игрок их не пропустил
-    public void SetCrystal(float x, float z)
+    private void SetCrystal(Vector3 position)
     {
-        lastCrystalX = x = Math.Max(x, lastCrystalX);
-        lastCrystalZ = z = Math.Max(z, lastCrystalZ);
-        GameObject clone = GameObject.Instantiate(capsule);
-        clone.transform.position += new Vector3(x, 0, z);
-        clone.SetActive(true);
-        ltObjects.Add(clone);
-        ltCrystals.Add(clone);
+        var crustal = crystalPull.Get();
+        lastCrystalX = Math.Max(position.x, lastCrystalX);
+        lastCrystalZ = Math.Max(position.z, lastCrystalZ);
+        crustal.transform.position += new Vector3(lastCrystalX, 0, lastCrystalZ);
+        ltCrystals.Add(crustal);
     }
 
     //Очистка уровня
-    public void Clear()
+    private void Clear()
     {
         Score = 0;
         lastCrystalX = 0;
@@ -75,14 +70,42 @@ public class LevelData
         mazeX = 0;
         mazeZ = 0;
 
-        foreach (var clone in ltObjects)
-            GameObject.Destroy(clone);
-        ltObjects.Clear();
+        foreach (var clone in ltGrounds)
+            groundPull.Put(clone);
+        ltGrounds.Clear();
+        foreach (var clone in ltCrystals)
+            crystalPull.Put(clone);
+        ltCrystals.Clear();
 
         ground = new bool[mazeSize, mazeSize];
     }
 
-    //Сдвиг уровня и достройка дороги
+    public void Generate(ILevelGenerator levelGenerator, ICrystalGenerator crystalGenerator)
+    {
+        this.levelGenerator = levelGenerator;
+        this.crystalGenerator = crystalGenerator;
+
+        //Чистим предыдущий уровень
+        Clear();
+        levelGenerator.Clear();
+
+        GenerateNext();
+    }
+
+    private void GenerateNext()
+    {
+        foreach (var ground in levelGenerator.Generate(mazeX + mazeSize, mazeZ + mazeSize))
+        {
+            for (int x = 0; x < ground.WidthX; x++)
+                for (int z = 0; z < ground.WidthZ; z++)
+                    SetGround(ground.Position - new Vector3(x, 0, z));
+
+            if (ground.NumberLenght.HasValue && crystalGenerator.Check(ground.NumberLenght.Value))
+                SetCrystal(ground.Position - new Vector3(Random.Range(0f, ground.WidthX - 1), 0, Random.Range(0f, ground.WidthZ - 1)));
+        }
+    }
+
+    //Сдвиг уровня
     private void Shift(int shiftX, int shiftZ)
     {
         mazeX += shiftX;
@@ -93,43 +116,54 @@ public class LevelData
                     ground[mx, mz] = ground[mx + shiftX, mz + shiftZ];
                 else
                     ground[mx, mz] = false;
-
-        OnUpdate(); //Достроить дорогу
     }
 
-    //Проверка, что в данной позиции есть дорога
-    public bool Check(Vector3 pos)
+    //Проверка, что в данной позиции есть земля
+    public bool CheckGround(Vector3 pos)
     {
         int x = (int)Math.Round(pos.x);
         int z = (int)Math.Round(pos.z);
 
         //Если игрок проехал четверть уровня, то сдвинуть уровень и построить дорогу дальше
         if (x - mazeX > mazeSize / 4 || z - mazeZ > mazeSize / 4)
+        {
             Shift(x - mazeX, z - mazeZ);
+            GenerateNext();
+        }
 
         //Удаление блоков позади игрока
-        ltObjects.RemoveAll(clone => clone == null);
-        foreach (var clone in ltObjects)
-        {
-            var d = clone.transform.position.x + clone.transform.position.z - pos.x - pos.z;
-            if (d < -2)
-                clone.transform.position -= new Vector3(0, 10, 0) * Time.deltaTime;
-            if (clone.transform.position.y < -10)
-                GameObject.Destroy(clone);
-        }
+        foreach (var clone in ltGrounds)
+            if (CheckFall(clone, pos))
+                groundPull.Put(clone);
+        ltGrounds.RemoveAll(clone => !clone.activeInHierarchy);
 
         //Подбор кристаллов
-        ltCrystals.RemoveAll(clone => clone == null);
         foreach (var clone in ltCrystals)
-        {
-            var d = (clone.transform.position - pos).magnitude;
-            if (d < (0.5 + 0.25) / 2)
-            {
-                Score++;
-                GameObject.Destroy(clone);
-            }
-        }
+            if (CheckFall(clone, pos) || CheckLoot(clone, pos))
+                crystalPull.Put(clone);
+        ltCrystals.RemoveAll(clone => !clone.activeInHierarchy);
 
         return ground[x - mazeX, z - mazeZ];
+    }
+
+    private bool CheckFall(GameObject gameObject, Vector3 pos)
+    {
+        var d = gameObject.transform.position.x + gameObject.transform.position.z - pos.x - pos.z;
+        if (d < -2)
+            gameObject.transform.position -= new Vector3(0, 10, 0) * Time.deltaTime;
+
+        return gameObject.transform.position.y < -10;
+    }
+
+    private bool CheckLoot(GameObject gameObject, Vector3 pos)
+    {
+        var d = (gameObject.transform.position - pos).magnitude;
+        if (d < (0.5 + 0.25) / 2)
+        {
+            Score++;
+            return true;
+        }
+
+        return false;
     }
 }

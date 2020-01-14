@@ -17,7 +17,7 @@ public class GameLogic : MonoBehaviour
         [CrystalGenerateType.InOrder] = new CrystalGeneratorInOrder(5),
     };
 
-    readonly Dictionary<GameDifficultyType, ILevelGenerator> GroundGenerators = new Dictionary<GameDifficultyType, ILevelGenerator>
+    readonly Dictionary<GameDifficultyType, ILevelGenerator> LevelGenerators = new Dictionary<GameDifficultyType, ILevelGenerator>
     {
         [GameDifficultyType.Easy] = new MazeGenerator(5, 3),
         [GameDifficultyType.Medium] = new MazeGenerator(5, 2),
@@ -37,16 +37,18 @@ public class GameLogic : MonoBehaviour
         mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
         cameraPos = mainCamera.transform.position;
 
-        level = new LevelData(cube, capsule);
+        var cubePull = new GameObjectPull(cube);
+        var capsulePull = new GameObjectPull(capsule);
+        level = new LevelData(cubePull, capsulePull);
         CreateLevel();
     }
 
     private void CreateLevel()
     {
         //Создание уровня по выбранной сложности и расстановке кристолов
-        var groundGenerator = GroundGenerators[GameDifficulty];
+        var levelGenerator = LevelGenerators[GameDifficulty];
         var crystalGenerator = CrystalGenerators[CrystalGenerate];
-        groundGenerator.Generate(level, crystalGenerator);
+        level.Generate(levelGenerator, crystalGenerator);
     }
 
     public void Update()
@@ -74,7 +76,7 @@ public class GameLogic : MonoBehaviour
         sphere.transform.position += moveDirection * Time.deltaTime;
 
         //Проверка, что шарик на дороге
-        if (level.Check(sphere.transform.position))
+        if (level.CheckGround(sphere.transform.position))
         {
             scoreText.text = "Score: " + level.Score;
         }
